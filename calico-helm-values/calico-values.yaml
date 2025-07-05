@@ -1,0 +1,3 @@
+# Calico operator settings for AKS BYO-CNI
+installation:
+  kubernetesProvider: AKS

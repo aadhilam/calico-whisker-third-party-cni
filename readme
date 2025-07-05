@@ -1,0 +1,156 @@
+# Calico Whisker on Third-party CNI
+
+This guide demonstrates how to deploy Calico for Policy on an AKS cluster with Azure CNI. 
+
+## Prerequisites
+
+- Azure CLI installed and configured
+- kubectl configured to access your cluster
+- Helm 3.x installed
+
+## Step 1: Deploy AKS Cluster
+
+### 1.1 Create a resource group
+```bash
+az group create --name calicooss --location eastus2
+```
+
+### 1.2 Create the AKS cluster
+```bash
+az aks create \
+  --resource-group calicooss \
+  --name calico-whisker \
+  --node-count 3 \
+  --network-plugin azure \
+  --kubernetes-version 1.31.8
+```
+
+### 1.3 Get cluster credentials
+```bash
+az aks get-credentials --resource-group calicooss --name calico-whisker
+```
+
+### 1.4 Query the network profile of the cluster
+```bash
+az aks show --resource-group calicooss --name calico-whisker --query "networkProfile" -o json
+```
+
+## Step 2: Install Calico on AKS
+
+### 2.1 Add the Project Calico Helm repository
+```bash
+helm repo add projectcalico https://docs.projectcalico.org/charts
+```
+
+### 2.2 Update Helm repositories
+```bash
+helm repo update
+```
+
+### 2.3 Install Calico using the tigera-operator chart
+```bash
+helm install calico projectcalico/tigera-operator \
+  --version v3.30.0 \
+  --namespace tigera-operator \
+  --create-namespace \
+  --values calico-helm-values/calico-values.yaml
+```
+
+### 2.4 Verify Calico installation
+```bash
+# Check if tigera-operator is running
+kubectl get pods -n tigera-operator
+
+# Check Calico installation status
+watch kubectl get tigerastatus
+```
+
+## Step 3: Deploy the YaoBank Application
+
+### 3.1 Deploy the application
+```bash
+kubectl apply -f app/yaobank.yaml
+```
+
+### 3.2 Verify application deployment
+```bash
+# Check all pods are running
+kubectl get pods -n yaobank
+
+# Wait for all deployments to be ready
+kubectl wait --for=condition=Available deployment --all -n yaobank --timeout=300s
+```
+
+## Step 4: Set up port-forward to Calico Whisker
+
+```bash
+# Port-forward to access Calico Whisker backend
+kubectl port-forward service/whisker 8081 -n calico-system
+```
+
+### 4.1 Access Calico Whisker UI
+Open your browser and navigate to:
+```
+http://localhost:8081
+```
+
+### 4.2 Query flow logs via API
+```bash
+# Query recent flow logs (last 60 seconds)
+curl -G 'http://127.0.0.1:8081/whisker-backend/flows' \
+  --data-urlencode startTimeGte=-60 \
+  --data-urlencode startTimeLt=0 | jq
+```
+
+## Cleanup
+
+### Uninstall everything
+```bash
+# Remove the application
+kubectl delete -f app/yaobank.yaml
+
+# Uninstall Calico
+helm uninstall calico -n tigera-operator
+kubectl delete namespace tigera-operator
+
+# Delete the AKS cluster
+az aks delete --resource-group calicooss --name calico-whisker --yes --no-wait
+
+# Optional: Delete the resource group (this will delete all resources in the group)
+az group delete --name calicooss --yes --no-wait
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Pods stuck in pending**: Check if Calico components are ready
+   ```bash
+   kubectl get pods -n calico-system
+   kubectl get pods -n tigera-operator
+   ```
+
+2. **Network policies not working**: Verify Calico is properly installed
+   ```bash
+   kubectl get installation default -o yaml
+   ```
+
+3. **Flow logs not appearing**: Ensure proper annotations and Calico Enterprise features are enabled
+
+### Useful Commands
+```bash
+# Check Calico node status
+kubectl get nodes -o wide
+
+# View Calico configuration
+kubectl get installation default -o yaml
+
+# Check for policy violations in logs
+kubectl logs -n calico-system -l k8s-app=calico-node --tail=100 | grep -i deny
+```
+
+## Additional Resources
+
+- [Calico Documentation](https://docs.projectcalico.org/)
+- [Staged Network Policies Guide](https://docs.projectcalico.org/security/staged-network-policies)
+- [AKS with Calico](https://docs.microsoft.com/en-us/azure/aks/use-network-policies)
