@@ -119,38 +119,6 @@ az aks delete --resource-group calicooss --name calico-whisker --yes --no-wait
 # Optional: Delete the resource group (this will delete all resources in the group)
 az group delete --name calicooss --yes --no-wait
 ```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Pods stuck in pending**: Check if Calico components are ready
-   ```bash
-   kubectl get pods -n calico-system
-   kubectl get pods -n tigera-operator
-   ```
-
-2. **Network policies not working**: Verify Calico is properly installed
-   ```bash
-   kubectl get installation default -o yaml
-   ```
-
-3. **Flow logs not appearing**: Ensure proper annotations and Calico Enterprise features are enabled
-
-### Useful Commands
-```bash
-# Check Calico node status
-kubectl get nodes -o wide
-
-# View Calico configuration
-kubectl get installation default -o yaml
-
-# Check for policy violations in logs
-kubectl logs -n calico-system -l k8s-app=calico-node --tail=100 | grep -i deny
-```
-
 ## Additional Resources
 
 - [Calico Documentation](https://docs.projectcalico.org/)
-- [Staged Network Policies Guide](https://docs.projectcalico.org/security/staged-network-policies)
-- [AKS with Calico](https://docs.microsoft.com/en-us/azure/aks/use-network-policies)
